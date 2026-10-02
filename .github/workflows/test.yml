@@ -22,3 +22,7 @@ jobs:
 
       - name: Run tests
         run: forge test -vvv
+
+      # The registry must stay unable to hold text: only fixed-size values may appear in the contract.
+      - name: No dynamic text fields in the contract
+        run: "! grep -nP '\\b(string|bytes)\\b(?!\\d)' src/ConsensMedVerify.sol"
