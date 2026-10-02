@@ -1,22 +1,21 @@
-// Builds synthetic PDF documents with a QR code and walks them through the registry:
+// Builds synthetic consent forms with a QR code and walks them through the registry:
 // issue, verify, alter, revoke, supersede. Outputs go to demo/out/ (never tracked).
 import { createHash, randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { LineCapStyle, PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import QRCode from "qrcode";
+import { buildPdf } from "./document.mjs";
 
 const DRY_RUN = process.argv.includes("--dry-run");
 
+const SEPOLIA_CHAIN_ID = "421614";
 const CONTRACT = process.env.ARB_ANCHOR_CONTRACT ?? "0x6F0aDfD3ef7befac17A6165A9Db07BFd54C2d285";
 const RPC_URL = process.env.ARB_RPC_URL ?? "https://sepolia-rollup.arbitrum.io/rpc";
-const VERIFY_URL = process.env.VERIFY_URL ?? "https://minije.github.io/consensmed-anchor/verify/";
+const VERIFY_URL = process.env.VERIFY_URL ?? "https://verify.consensmed.ro/";
 const CAST = process.env.CAST_BIN ?? "cast";
 const SIGNER = process.env.ARB_SUBMITTER_KEY;
 
-const SYNTHETIC_NOTICE = "DATE SINTETICE — fără date de pacient";
 const STATUS = ["NOT_FOUND", "VALID", "MISMATCH", "REVOKED", "SUPERSEDED"];
 // Every real run gets its own folder: documents that are already registered are never overwritten.
 const RUNS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "out");
@@ -25,19 +24,36 @@ const OUT_DIR = path.join(RUNS_DIR, DRY_RUN ? "preview" : RUN_NAME);
 const STATE_NAME = "demo-state.json";
 const STATE_FILE = path.join(OUT_DIR, STATE_NAME);
 
-const NAVY = rgb(0.075, 0.102, 0.294);
-const INDIGO = rgb(0.165, 0.216, 0.525);
-const TEAL = rgb(0, 0.51, 0.455);
-const WHITE = rgb(1, 1, 1);
-
-const newDocId = () => "0x" + randomBytes(32).toString("hex");
 const sha256Hex = (bytes) => "0x" + createHash("sha256").update(bytes).digest("hex");
 const verifyUrl = (docId) => `${VERIFY_URL}?id=${docId}`;
+
+// The ID is printed in the document. An ID with a long run of decimal digits is drawn again, so
+// that nothing on the page can be mistaken for a personal identification number.
+function newDocId() {
+  for (;;) {
+    const hex = randomBytes(32).toString("hex");
+    if (!/\d{13}/.test(hex)) return "0x" + hex;
+  }
+}
 
 function cast(args) {
   const run = spawnSync(CAST, args, { encoding: "utf8" });
   if (run.error) throw new Error(`cannot run ${CAST}: ${run.error.message}`);
   return { ok: run.status === 0, stdout: run.stdout.trim(), stderr: run.stderr.trim() };
+}
+
+// The key reaches cast as a plain argument, which is acceptable for a testnet key only. The demo
+// therefore refuses to start unless the environment and the RPC both say Arbitrum Sepolia.
+function assertSepolia() {
+  const declared = process.env.ARB_CHAIN_ID;
+  if (declared !== SEPOLIA_CHAIN_ID) {
+    throw new Error(`ARB_CHAIN_ID must be ${SEPOLIA_CHAIN_ID} (Arbitrum Sepolia); it is ${declared ?? "not set"}`);
+  }
+  if (DRY_RUN) return;
+  const run = cast(["chain-id", "--rpc-url", RPC_URL]);
+  if (!run.ok || run.stdout !== SEPOLIA_CHAIN_ID) {
+    throw new Error(`the RPC does not report chain ${SEPOLIA_CHAIN_ID}: ${run.ok ? run.stdout : run.stderr}`);
+  }
 }
 
 function failureText(run) {
@@ -68,153 +84,6 @@ function verifyOnChain(docId, contentHash) {
   return STATUS[Number(run.stdout)];
 }
 
-// The standard PDF fonts have no "ă": the base letter is drawn and the breve is added as a path.
-function drawRomanian(page, text, { x, y, size, font, color }) {
-  let cursor = x;
-  for (const ch of text) {
-    const base = ch === "ă" ? "a" : ch;
-    page.drawText(base, { x: cursor, y, size, font, color });
-    const width = font.widthOfTextAtSize(base, size);
-    if (base !== ch) {
-      const r = size * 0.16;
-      page.drawSvgPath(`M ${-r} 0 Q 0 ${size * 0.22} ${r} 0`, {
-        x: cursor + width / 2,
-        y: y + size * 0.74,
-        borderColor: color,
-        borderWidth: size * 0.07,
-      });
-    }
-    cursor += width;
-  }
-}
-
-const roundedRect = (side, r) =>
-  `M ${r} 0 H ${side - r} A ${r} ${r} 0 0 1 ${side} ${r} V ${side - r} A ${r} ${r} 0 0 1 ${side - r} ${side} ` +
-  `H ${r} A ${r} ${r} 0 0 1 0 ${side - r} V ${r} A ${r} ${r} 0 0 1 ${r} 0 Z`;
-
-// The ConsensMed mark, drawn in a 512-unit square: an open "C" with a capsule entering its gap.
-function drawLogo(page, { x, top, size }) {
-  const at = { x, y: top, scale: size / 512 };
-  const round = { borderLineCap: LineCapStyle.Round };
-  page.drawSvgPath(roundedRect(512, 112), { ...at, color: NAVY });
-  page.drawSvgPath("M 361 155 A 145 145 0 1 0 361 357", { ...at, ...round, borderColor: WHITE, borderWidth: 58 });
-  page.drawSvgPath("M 280.6 282.3 L 379.4 229.7", { ...at, ...round, borderColor: TEAL, borderWidth: 68 });
-  page.drawSvgPath("M 280.6 282.3 L 300 272", { ...at, ...round, borderColor: WHITE, borderWidth: 68, borderOpacity: 0.25 });
-  page.drawSvgPath("M 314 226 L 346 286", { ...at, borderColor: WHITE, borderWidth: 4, borderOpacity: 0.5 });
-}
-
-// Finder (7 cells) and alignment (5 cells) patterns stay solid and single-coloured: readers locate
-// the code by them, and a lighter centre next to navy is binarised as "light" by some decoders.
-function drawTarget(page, { x, top, cell, cells }) {
-  const layer = (inset, color, radius) =>
-    page.drawSvgPath(roundedRect((cells - 2 * inset) * cell, radius * cell), {
-      x: x + inset * cell,
-      y: top - inset * cell,
-      color,
-    });
-  layer(0, NAVY, cells === 7 ? 2 : 1.2);
-  layer(1, WHITE, cells === 7 ? 1.2 : 0.6);
-  layer(2, NAVY, cells === 7 ? 0.9 : 0.5);
-}
-
-function alignmentCentres(version, n) {
-  if (version < 2) return [];
-  const count = Math.floor(version / 7) + 2;
-  const step = version === 32 ? 26 : Math.floor((version * 4 + count * 2 + 1) / (count * 2 - 2)) * 2;
-  const axis = [6];
-  for (let pos = n - 7; axis.length < count; pos -= step) axis.splice(1, 0, pos);
-  const last = n - 7;
-  return axis
-    .flatMap((r) => axis.map((c) => [r, c]))
-    .filter(([r, c]) => !((r === 6 && c === 6) || (r === 6 && c === last) || (r === last && c === 6)));
-}
-
-// Dots instead of squares, rounded finder patterns and the logo in the centre. The logo hides
-// modules, so the code uses the highest error-correction level to stay readable.
-function drawQr(page, text, { x, top, size }) {
-  const { modules, version } = QRCode.create(text, { errorCorrectionLevel: "H" });
-  const n = modules.size;
-  const quiet = 2;
-  const cell = size / (n + 2 * quiet);
-  const left = x + quiet * cell;
-  const upper = top - quiet * cell;
-  const logoCells = 2 * Math.floor(n * 0.115) + 1;
-  const logoStart = (n - logoCells) / 2;
-
-  const within = (r, c, r0, c0, side) => r >= r0 && r < r0 + side && c >= c0 && c < c0 + side;
-  const inLogo = (r, c) => within(r, c, logoStart, logoStart, logoCells);
-  const finders = [[0, 0], [0, n - 7], [n - 7, 0]];
-  const alignments = alignmentCentres(version, n).filter(
-    ([r, c]) => !inLogo(r - 2, c - 2) && !inLogo(r - 2, c + 2) && !inLogo(r + 2, c - 2) && !inLogo(r + 2, c + 2),
-  );
-  const reserved = (r, c) =>
-    inLogo(r, c) ||
-    finders.some(([r0, c0]) => within(r, c, r0, c0, 7)) ||
-    alignments.some(([r0, c0]) => within(r, c, r0 - 2, c0 - 2, 5));
-
-  page.drawRectangle({ x, y: top - size, width: size, height: size, color: WHITE });
-  for (let r = 0; r < n; r++) {
-    for (let c = 0; c < n; c++) {
-      if (!modules.get(r, c) || reserved(r, c)) continue;
-      page.drawCircle({
-        x: left + (c + 0.5) * cell,
-        y: upper - (r + 0.5) * cell,
-        size: cell * 0.45,
-        color: (r * 7 + c * 13) % 5 < 2 ? INDIGO : NAVY,
-      });
-    }
-  }
-  for (const [r, c] of finders) drawTarget(page, { x: left + c * cell, top: upper - r * cell, cell, cells: 7 });
-  for (const [r, c] of alignments) {
-    drawTarget(page, { x: left + (c - 2) * cell, top: upper - (r - 2) * cell, cell, cells: 5 });
-  }
-  drawLogo(page, {
-    x: left + (logoStart + 0.5) * cell,
-    top: upper - (logoStart + 0.5) * cell,
-    size: (logoCells - 1) * cell,
-  });
-}
-
-async function buildPdf({ docId, title, lines }) {
-  const pdf = await PDFDocument.create();
-  pdf.setTitle(title);
-  pdf.setSubject(SYNTHETIC_NOTICE);
-  pdf.setKeywords([SYNTHETIC_NOTICE, "ConsensMed Verify demo"]);
-  pdf.setProducer("consensmed-anchor demo");
-
-  const page = pdf.addPage([595, 842]);
-  const regular = await pdf.embedFont(StandardFonts.Helvetica);
-  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-  const mono = await pdf.embedFont(StandardFonts.Courier);
-  const ink = rgb(0.09, 0.13, 0.17);
-  const muted = rgb(0.36, 0.41, 0.46);
-  const warn = rgb(0.7, 0.15, 0.12);
-
-  page.drawText("ConsensMed Verify", { x: 56, y: 770, size: 22, font: bold, color: ink });
-  page.drawText(title, { x: 56, y: 742, size: 14, font: regular, color: ink });
-  page.drawRectangle({ x: 56, y: 696, width: 483, height: 28, borderColor: warn, borderWidth: 1.2 });
-  drawRomanian(page, SYNTHETIC_NOTICE, { x: 66, y: 705, size: 12, font: bold, color: warn });
-  page.drawText("SYNTHETIC DATA: no patient data. Generated for a public demo.", {
-    x: 56, y: 676, size: 10, font: regular, color: muted,
-  });
-
-  let y = 636;
-  for (const line of lines) {
-    page.drawText(line, { x: 56, y, size: 12, font: regular, color: ink });
-    y -= 20;
-  }
-
-  drawQr(page, verifyUrl(docId), { x: 56, top: 360, size: 210 });
-  page.drawText("Scan to verify this document", { x: 284, y: 320, size: 13, font: bold, color: ink });
-  page.drawText("The page compares this file with the public registry", { x: 284, y: 300, size: 10, font: regular, color: muted });
-  page.drawText("on Arbitrum. The file never leaves your browser.", { x: 284, y: 286, size: 10, font: regular, color: muted });
-  page.drawText("Document ID", { x: 56, y: 122, size: 9, font: bold, color: muted });
-  page.drawText(docId, { x: 56, y: 108, size: 8, font: mono, color: ink });
-  page.drawText(VERIFY_URL, { x: 56, y: 92, size: 8, font: mono, color: muted });
-
-  return Buffer.from(await pdf.save());
-}
-
 // One byte changes inside the binary comment of the PDF header, so the copy still opens normally.
 function alterOneByte(bytes) {
   const altered = Buffer.from(bytes);
@@ -224,25 +93,23 @@ function alterOneByte(bytes) {
   return altered;
 }
 
-async function makeDocument(file, title, lines) {
+async function makeDocument(file, consent) {
   const docId = newDocId();
-  const bytes = await buildPdf({ docId, title, lines });
+  const url = verifyUrl(docId);
+  const bytes = await buildPdf({ docId, url, verifyUrl: VERIFY_URL, consent });
   writeFileSync(path.join(OUT_DIR, file), bytes);
-  return { file, docId, contentHash: sha256Hex(bytes), url: verifyUrl(docId), bytes };
+  return { file, docId, contentHash: sha256Hex(bytes), url, bytes };
 }
 
 async function runDemo() {
   mkdirSync(OUT_DIR, { recursive: true });
   const stamp = new Date().toISOString();
-  const body = (kind) => [
-    `Document type: ${kind}`,
-    `Generated: ${stamp}`,
-    "Issuer: ConsensMed demo (Arbitrum Sepolia testnet)",
-    "Subject: none. This document describes no real person.",
-  ];
+  const consent = (number, version, scenario, notifications = true) => ({
+    number, version, scenario, notifications, issuedAt: stamp,
+  });
 
   console.log("1. Original document: issue");
-  const original = await makeDocument("01-original.pdf", "Demo medical letter", body("demo medical letter"));
+  const original = await makeDocument("01-original.pdf", consent("DEMO-0001", 1, "document valabil."));
   send("issue(bytes32,bytes32)", original.docId, original.contentHash);
 
   console.log("2. Altered copy of the original: one byte changed, nothing sent on-chain");
@@ -251,13 +118,14 @@ async function runDemo() {
   const altered = { file: "02-original-ALTERED.pdf", docId: original.docId, contentHash: sha256Hex(alteredBytes), url: original.url };
 
   console.log("3. Document issued by mistake: issue, then revoke");
-  const revoked = await makeDocument("03-revoked.pdf", "Demo letter issued by mistake", body("demo letter, later revoked"));
+  const revoked = await makeDocument("03-revoked.pdf", consent("DEMO-0002", 1, "document emis din eroare, apoi revocat de emitent."));
   send("issue(bytes32,bytes32)", revoked.docId, revoked.contentHash);
   send("revoke(bytes32,uint8)", revoked.docId, "1");
 
   console.log("4. Document with a newer version: issue both, then supersede");
-  const oldVersion = await makeDocument("04-superseded-v1.pdf", "Demo treatment summary, version 1", body("demo summary, version 1"));
-  const newVersion = await makeDocument("05-replacement-v2.pdf", "Demo treatment summary, version 2", body("demo summary, version 2"));
+  const oldVersion = await makeDocument("04-superseded.pdf", consent("DEMO-0003", 1, "versiunea 1, înlocuită ulterior de versiunea 2."));
+  const newVersion = await makeDocument("05-replacement.pdf",
+    consent("DEMO-0003", 2, "versiunea 2, înlocuiește versiunea 1 (acordul pentru notificări a fost retras).", false));
   send("issue(bytes32,bytes32)", oldVersion.docId, oldVersion.contentHash);
   send("issue(bytes32,bytes32)", newVersion.docId, newVersion.contentHash);
   send("supersede(bytes32,bytes32)", oldVersion.docId, newVersion.docId);
@@ -305,6 +173,7 @@ function reissue() {
 }
 
 try {
+  assertSepolia();
   if (process.argv.includes("--reissue")) reissue();
   else await runDemo();
 } catch (err) {
