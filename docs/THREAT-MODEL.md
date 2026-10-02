@@ -56,6 +56,12 @@ In the demo deployment a single testnet key is both owner and submitter. That is
 - **RPC trust.** The page believes the public RPC endpoint. A hostile endpoint could lie about the state. Anyone can repeat the call against their own node.
 - **The file stays local.** The page hashes the file in the browser and sends only the ID and the fingerprint to the RPC. The RPC operator sees those two values and the caller's IP address.
 
+### The domain
+
+The page is served at `verify.consensmed.ro`, a DNS alias to the host that publishes it. An alias that outlives the site behind it can be claimed by someone else, who then serves a page that always answers "valid" under a name people trust (subdomain takeover). This name was in that state before this project: it still pointed to a host that had been retired.
+
+The alias now points to a site that claims the name. The control against a repeat is the host's domain verification: once the domain is verified for the publishing account, no other account can attach the name to a site. The remaining rule is procedural: a DNS record is removed in the same change that retires the service behind it.
+
 ### The document itself
 
 - The fingerprint covers the file's bytes. Re-saving, printing to PDF or scanning produces a different file, which reports `MISMATCH` even though it looks the same. Verification works on the original file, not on a copy of its appearance.

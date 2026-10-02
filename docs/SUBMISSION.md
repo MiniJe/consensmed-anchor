@@ -28,7 +28,7 @@ A document's state changes over time: it can be revoked or replaced. That state 
 
 ## What was built during the Buildathon
 
-Everything in the repository: the ConsensMedVerify contract with full test coverage, its deployment on Arbitrum Sepolia with verified source, the public verification page, a demo that generates synthetic PDFs with QR codes and runs the full lifecycle, and a threat model.
+The ConsensMedVerify contract, fully tested, deployed on Arbitrum Sepolia with verified source; the public page at verify.consensmed.ro; a demo that takes synthetic consent forms with QR codes through the full lifecycle; an Arbitrum backend in the platform's anchoring service; a threat model.
 
 ## Contract address
 
@@ -40,7 +40,11 @@ https://sepolia.arbiscan.io/address/0x6F0aDfD3ef7befac17A6165A9Db07BFd54C2d285
 
 ## Frontend link
 
-https://minije.github.io/consensmed-anchor/verify/
+https://verify.consensmed.ro
+
+## Sample documents
+
+https://github.com/MiniJe/consensmed-anchor/releases/tag/demo-samples
 
 ## Repository
 
@@ -48,7 +52,11 @@ https://github.com/MiniJe/consensmed-anchor
 
 ## How a judge can verify it
 
-Open the frontend link and choose any file: it reports "Not registered". The demo video shows the full cycle. The Issued, Revoked and Superseded events of our demo run are on the explorer. To reproduce it end to end, deploy your own instance as the README describes.
+Open the sample documents link. Download 01-original.pdf, open its verification link and choose the file: Authentic and valid. Choose 02-original-ALTERED.pdf on the same page: Does not match. Scan the QR code on any sample with a phone to see its state, including Revoked and Replaced.
+
+## Platform integration
+
+ConsensMed's existing anchoring service (job queue, confirmation, retries) gained an Arbitrum backend, chosen by configuration. It derives the document ID from the hash, so the public page verifies a platform-anchored file with no QR code. Run end to end on Sepolia; the platform code is private.
 
 ## Privacy
 
@@ -56,8 +64,8 @@ No personal or medical data is on-chain. The contract stores only fixed-size val
 
 ## Known limits
 
-Testnet only and not audited. One key is both owner and submitter in the demo. The registry proves a file is the one an address registered, not that its content is true or who is behind the address. One transaction per document, no batching. The platform integration is private.
+Testnet only and not audited. One key is both owner and submitter in the demo. The registry proves a file is the one an address registered, not that its content is true or who is behind the address. One transaction per document, no batching. Platform-side revocation is not built yet.
 
 ## Next steps
 
-Separate the owner (multisig) from submitters, publish issuer addresses through a trusted channel, batch registrations, self-host the page's library with integrity hashes, and connect the registry to the document flows of the ConsensMed platform.
+Separate the owner (multisig) from submitters, publish issuer addresses through a trusted channel, batch registrations, self-host the page's library with integrity hashes, and route the platform's consent and document flows through the Arbitrum backend, with revocation.
