@@ -1,0 +1,16 @@
+{
+  "name": "consensmed-anchor-demo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Synthetic demo documents with a QR code, registered and verified on Arbitrum Sepolia",
+  "license": "MIT",
+  "scripts": {
+    "demo": "node make-demo.mjs",
+    "reissue": "node make-demo.mjs --reissue"
+  },
+  "dependencies": {
+    "pdf-lib": "^1.17.1",
+    "qrcode": "^1.5.4"
+  }
+}
