@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>ConsensMed Verify</title>
+<script>
+  // QR codes carry "/?id=<docId>": the query string and fragment travel with the redirect.
+  location.replace("verify/" + location.search + location.hash);
+</script>
+<noscript><meta http-equiv="refresh" content="0; url=verify/"></noscript>
+</head>
+<body>
+<p><a href="verify/">ConsensMed Verify</a></p>
+</body>
+</html>
