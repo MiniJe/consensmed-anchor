@@ -26,10 +26,14 @@
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; padding: 24px 16px 48px; background: var(--bg); color: var(--text);
+    margin: 0; background: var(--bg); color: var(--text);
     font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   }
-  main { max-width: 640px; margin: 0 auto; }
+  .banner {
+    position: sticky; top: 0; z-index: 1; padding: 8px 16px; text-align: center;
+    background: #8a4b00; color: #ffffff; font-size: 0.9rem; font-weight: 600; letter-spacing: 0.02em;
+  }
+  main { max-width: 640px; margin: 0 auto; padding: 24px 16px 48px; }
   h1 { font-size: 1.5rem; margin: 0 0 4px; }
   .lead { color: var(--muted); margin: 0 0 20px; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
@@ -60,11 +64,14 @@
   .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.85rem; overflow-wrap: anywhere; }
   a { color: var(--accent); }
   footer { color: var(--muted); font-size: 0.85rem; }
+  .privacy { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .privacy p { margin: 0 0 8px; }
   [hidden] { display: none !important; }
   @media (max-width: 480px) { dl { grid-template-columns: 1fr; gap: 2px; } dd { margin-bottom: 8px; } }
 </style>
 </head>
 <body>
+<div class="banner" role="note">Testnet preview — Arbitrum Sepolia</div>
 <main>
   <h1>ConsensMed Verify</h1>
   <p class="lead">Check whether a document is the one its issuer registered on Arbitrum, and whether it is still valid.</p>
@@ -91,6 +98,10 @@
     Registry contract on Arbitrum Sepolia:
     <a id="contractLink" class="mono" rel="noopener" target="_blank"></a><br>
     No personal or medical data is stored on-chain: only an opaque document ID and a fingerprint.
+    <div class="privacy">
+      <p lang="en"><strong>Privacy.</strong> The file never leaves your browser. No cookies, no analytics. The page loads one library from a CDN and reads the public Arbitrum RPC; both see your IP address. Operator: BEYOND-SOFTWARE S.R.L.</p>
+      <p lang="ro"><strong>Confidențialitate.</strong> Fișierul nu părăsește browserul. Fără cookie-uri, fără analytics. Pagina încarcă o bibliotecă dintr-un CDN și citește RPC-ul public Arbitrum; ambele văd adresa IP. Operator: BEYOND-SOFTWARE S.R.L.</p>
+    </div>
   </footer>
 </main>
 
