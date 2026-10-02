@@ -78,10 +78,13 @@ The demo builds synthetic PDF documents with a QR code and walks them through th
 cd demo
 npm install
 node make-demo.mjs            # issues the documents and prints the five states read back from the contract
-node make-demo.mjs --reissue  # tries to issue the original again; the registry refuses
+node make-demo.mjs --reissue  # tries to issue the original of the latest run again; the registry refuses
+node make-demo.mjs --dry-run  # only builds the documents, in demo/out/preview/; needs no key and sends nothing
 ```
 
-Outputs go to `demo/out/`, which is not tracked. The documents contain synthetic data only and say so on the page.
+Each run writes to its own folder, `demo/out/run-<time>/`, so documents that are already registered are never overwritten. `demo/out/` is not tracked. The documents contain synthetic data only and say so on the page.
+
+The QR code is drawn as vector dots with the ConsensMed mark in the centre. The mark hides part of the code, so it is generated at the highest error-correction level; the finder and alignment patterns are kept solid so that ordinary readers lock onto it.
 
 The deployed contract accepts documents only from its own submitter. To run the demo end to end with your own key, deploy your own instance and point the demo at it:
 
