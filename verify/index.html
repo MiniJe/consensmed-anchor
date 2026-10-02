@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>ConsensMed Verify</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #ffffff; --text: #16202b; --muted: #5b6875; --line: #dde2e8; --accent: #1f5fbf;
+    --valid: #12733f; --valid-bg: #e4f5ea;
+    --mismatch: #b3261e; --mismatch-bg: #fbe9e7;
+    --revoked: #9a4b00; --revoked-bg: #fdefd8;
+    --superseded: #5b3aa6; --superseded-bg: #ede7fa;
+    --notfound: #46525e; --notfound-bg: #e9ecf0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #10151b; --card: #19212a; --text: #e8edf2; --muted: #9aa7b4; --line: #2c3742; --accent: #7fb0ff;
+      --valid: #6fdc9c; --valid-bg: #133222;
+      --mismatch: #ff9a91; --mismatch-bg: #3d1a17;
+      --revoked: #ffc27a; --revoked-bg: #3a2a10;
+      --superseded: #c4b0ff; --superseded-bg: #2a2145;
+      --notfound: #c3ccd5; --notfound-bg: #262f39;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px 16px 48px; background: var(--bg); color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 640px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  .lead { color: var(--muted); margin: 0 0 20px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  .drop {
+    display: block; border: 2px dashed var(--line); border-radius: 10px; padding: 28px 16px;
+    text-align: center; cursor: pointer; color: var(--muted);
+  }
+  .drop.over, .drop:focus-within { border-color: var(--accent); color: var(--text); }
+  .drop strong { display: block; color: var(--text); font-size: 1.05rem; margin-bottom: 4px; }
+  .drop input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .hint { color: var(--muted); font-size: 0.9rem; margin: 12px 0 0; }
+  .result { border-radius: 10px; padding: 16px; border-left: 6px solid; }
+  .result h2 { margin: 0 0 4px; font-size: 1.25rem; }
+  .result p { margin: 0; }
+  .s-valid { background: var(--valid-bg); border-color: var(--valid); }
+  .s-valid h2 { color: var(--valid); }
+  .s-mismatch { background: var(--mismatch-bg); border-color: var(--mismatch); }
+  .s-mismatch h2 { color: var(--mismatch); }
+  .s-revoked { background: var(--revoked-bg); border-color: var(--revoked); }
+  .s-revoked h2 { color: var(--revoked); }
+  .s-superseded { background: var(--superseded-bg); border-color: var(--superseded); }
+  .s-superseded h2 { color: var(--superseded); }
+  .s-notfound, .s-info { background: var(--notfound-bg); border-color: var(--notfound); }
+  .s-notfound h2, .s-info h2 { color: var(--notfound); }
+  dl { margin: 16px 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; font-size: 0.92rem; }
+  dt { color: var(--muted); }
+  dd { margin: 0; min-width: 0; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.85rem; overflow-wrap: anywhere; }
+  a { color: var(--accent); }
+  footer { color: var(--muted); font-size: 0.85rem; }
+  [hidden] { display: none !important; }
+  @media (max-width: 480px) { dl { grid-template-columns: 1fr; gap: 2px; } dd { margin-bottom: 8px; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>ConsensMed Verify</h1>
+  <p class="lead">Check whether a document is the one its issuer registered on Arbitrum, and whether it is still valid.</p>
+
+  <section class="card">
+    <label class="drop" id="drop">
+      <strong>Choose the document file</strong>
+      or drop it here
+      <input type="file" id="file">
+    </label>
+    <p class="hint" id="idHint"></p>
+    <p class="hint">The file never leaves your browser. Only its SHA-256 fingerprint is compared with the public registry.</p>
+  </section>
+
+  <section class="card" id="resultCard" hidden>
+    <div class="result" id="result" role="status" aria-live="polite">
+      <h2 id="resultTitle"></h2>
+      <p id="resultText"></p>
+    </div>
+    <dl id="details"></dl>
+  </section>
+
+  <footer>
+    Registry contract on Arbitrum Sepolia:
+    <a id="contractLink" class="mono" rel="noopener" target="_blank"></a><br>
+    No personal or medical data is stored on-chain: only an opaque document ID and a fingerprint.
+  </footer>
+</main>
+
+<script type="module">
+import { JsonRpcProvider, Contract } from "https://cdn.jsdelivr.net/npm/ethers@6.13.5/dist/ethers.min.js";
+
+const CONTRACT = "0x6F0aDfD3ef7befac17A6165A9Db07BFd54C2d285";
+const RPC_URL = "https://sepolia-rollup.arbitrum.io/rpc";
+const CHAIN_ID = 421614;
+const EXPLORER = "https://sepolia.arbiscan.io/address/";
+const ZERO = "0x" + "0".repeat(64);
+const ABI = [
+  "function verify(bytes32 docId, bytes32 contentHash) view returns (uint8)",
+  "function record(bytes32 docId) view returns (bytes32 contentHash, uint64 issuedAt, uint8 status, bytes32 supersededBy, address issuer)",
+  "function docIdOf(bytes32 contentHash) view returns (bytes32)",
+];
+const STATES = [
+  { css: "s-notfound", title: "Not registered",
+    text: "The registry has no record for this document." },
+  { css: "s-valid", title: "Authentic and valid",
+    text: "This exact file is the document the issuer registered, and it is currently valid." },
+  { css: "s-mismatch", title: "Does not match",
+    text: "A document with this ID is registered, but this file is not it: the file was altered or is a different document." },
+  { css: "s-revoked", title: "Revoked",
+    text: "This file is the registered document, but the issuer has revoked it." },
+  { css: "s-superseded", title: "Replaced by a newer version",
+    text: "This file is the registered document, but the issuer has replaced it with a newer one." },
+];
+
+const $ = (id) => document.getElementById(id);
+const registry = new Contract(CONTRACT, ABI, new JsonRpcProvider(RPC_URL, CHAIN_ID, { staticNetwork: true }));
+
+const rawId = new URLSearchParams(location.search).get("id");
+const urlId = rawId && /^0x[0-9a-fA-F]{64}$/.test(rawId) ? rawId.toLowerCase() : null;
+
+function show(css, title, text) {
+  $("result").className = "result " + css;
+  $("resultTitle").textContent = title;
+  $("resultText").textContent = text;
+  $("details").replaceChildren();
+  $("resultCard").hidden = false;
+}
+
+function addDetail(label, value, opts = {}) {
+  const dt = document.createElement("dt");
+  dt.textContent = label;
+  const dd = document.createElement("dd");
+  if (opts.mono) dd.className = "mono";
+  if (opts.href) {
+    const a = document.createElement("a");
+    a.href = opts.href;
+    a.textContent = value;
+    dd.append(a);
+  } else {
+    dd.textContent = value;
+  }
+  $("details").append(dt, dd);
+}
+
+function formatTime(seconds) {
+  const d = new Date(Number(seconds) * 1000);
+  return d.toISOString().replace("T", " ").replace(".000Z", " UTC") + " (" + d.toLocaleString() + ")";
+}
+
+function addRecordDetails(docId, rec) {
+  addDetail("Document ID", docId, { mono: true });
+  if (rec.issuedAt > 0n) {
+    addDetail("Registered at", formatTime(rec.issuedAt));
+    addDetail("Issuer address", rec.issuer, { mono: true, href: EXPLORER + rec.issuer });
+  }
+  if (rec.supersededBy !== ZERO) {
+    addDetail("Replaced by", rec.supersededBy, { mono: true, href: "?id=" + rec.supersededBy });
+  }
+  addDetail("Registry contract", CONTRACT, { mono: true, href: EXPLORER + CONTRACT });
+}
+
+async function sha256Hex(file) {
+  const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+  return "0x" + Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function checkFile(file) {
+  show("s-info", "Checking…", "Computing the fingerprint and reading the registry.");
+  try {
+    const contentHash = await sha256Hex(file);
+    const docId = urlId ?? (await registry.docIdOf(contentHash));
+    if (docId === ZERO) {
+      show(STATES[0].css, STATES[0].title,
+        "No document with this fingerprint is registered. If the document carries a QR code, open this page from the QR to check the file against its ID.");
+      addDetail("File", file.name);
+      addDetail("SHA-256 of this file", contentHash, { mono: true });
+      addDetail("Registry contract", CONTRACT, { mono: true, href: EXPLORER + CONTRACT });
+      return;
+    }
+    const [status, rec] = await Promise.all([registry.verify(docId, contentHash), registry.record(docId)]);
+    const state = STATES[Number(status)];
+    show(state.css, state.title, state.text);
+    addDetail("File", file.name);
+    addDetail("SHA-256 of this file", contentHash, { mono: true });
+    addRecordDetails(docId, rec);
+  } catch (err) {
+    console.error(err);
+    show("s-info", "Could not check", "The public Arbitrum Sepolia RPC did not answer. Check your connection and try again.");
+  }
+}
+
+async function showIdSummary() {
+  if (rawId && !urlId) {
+    $("idHint").textContent = "The document ID in this link is malformed and was ignored; the file will be looked up by its fingerprint.";
+    return;
+  }
+  if (!urlId) return;
+  $("idHint").textContent = "This link carries a document ID. Choose the file to confirm it is that document.";
+  try {
+    const rec = await registry.record(urlId);
+    if ($("file").files.length > 0) return;
+    if (rec.issuedAt === 0n) {
+      show(STATES[0].css, STATES[0].title, "The registry has no document with the ID carried by this link.");
+    } else {
+      const names = ["", "valid", "", "revoked", "replaced by a newer version"];
+      show("s-info", "Document ID found",
+        "The registry lists this document as " + names[Number(rec.status)] + ". Choose the file to confirm it is the same document.");
+    }
+    addRecordDetails(urlId, rec);
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+const drop = $("drop");
+$("file").addEventListener("change", (e) => { if (e.target.files[0]) checkFile(e.target.files[0]); });
+for (const type of ["dragenter", "dragover"]) {
+  drop.addEventListener(type, (e) => { e.preventDefault(); drop.classList.add("over"); });
+}
+for (const type of ["dragleave", "drop"]) {
+  drop.addEventListener(type, (e) => { e.preventDefault(); drop.classList.remove("over"); });
+}
+drop.addEventListener("drop", (e) => { if (e.dataTransfer.files[0]) checkFile(e.dataTransfer.files[0]); });
+
+$("contractLink").href = EXPLORER + CONTRACT;
+$("contractLink").textContent = CONTRACT;
+showIdSummary();
+</script>
+</body>
+</html>
