@@ -60,7 +60,9 @@ In the demo deployment a single testnet key is both owner and submitter. That is
 
 The page is served at `verify.consensmed.ro`, a DNS alias to the host that publishes it. An alias that outlives the site behind it can be claimed by someone else, who then serves a page that always answers "valid" under a name people trust (subdomain takeover). This name was in that state before this project: it still pointed to a host that had been retired.
 
-The alias now points to a site that claims the name. The control against a repeat is the host's domain verification: once the domain is verified for the publishing account, no other account can attach the name to a site. The remaining rule is procedural: a DNS record is removed in the same change that retires the service behind it.
+The alias now points to a site that claims the name, served from GitHub Pages. GitHub offers domain verification, which stops any other account from attaching a verified name to a site. It is not enabled for this domain; that is a decision of the domain owner.
+
+The compensating control is an order of operations: before GitHub Pages is switched off for this repository, or the repository is deleted or renamed, the `verify` DNS record is moved or removed first. Kept in that order, the name never points to a site that nobody claims. This is a procedure, not a technical barrier: it holds only as long as whoever retires the site follows it.
 
 ### The document itself
 
