@@ -154,6 +154,7 @@ as a verifiable spec (invariants checked mechanically before and after each
 step), reviewed every result and made all deployment and key-management
 decisions. AI-generated code was accepted only after tests, Slither and
 on-chain checks passed.
+
 ## License
 
 MIT. Copyright (c) 2026 BEYOND-SOFTWARE S.R.L.
