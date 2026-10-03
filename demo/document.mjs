@@ -202,7 +202,7 @@ function drawHeader(page, consent, fonts) {
   page.drawText(`Scenariu demo: ${consent.scenario}`, { x: LEFT, y: 606, size: 9, font: regular, color: MUTED });
 }
 
-function drawVerification(page, { docId, url, verifyUrl }, fonts) {
+function drawVerification(page, { docId, url, verifyUrl, network }, fonts) {
   const { regular, bold, mono } = fonts;
   const x = LEFT + 220;
   const width = RIGHT - x;
@@ -210,7 +210,7 @@ function drawVerification(page, { docId, url, verifyUrl }, fonts) {
   drawQr(page, url, { x: LEFT, top: 248, size: 200 });
   page.drawText("Verifică autenticitatea documentului", { x, y: 226, size: 12, font: bold, color: INK });
   let y = paragraph(page,
-    `Scanează codul sau deschide ${new URL(verifyUrl).host} și alege fișierul. Pagina compară fișierul cu registrul public de pe Arbitrum; fișierul nu părăsește browserul.`,
+    `Scanează codul sau deschide ${new URL(verifyUrl).host} și alege fișierul. Pagina compară fișierul cu registrul public de pe ${network}; fișierul nu părăsește browserul.`,
     { x, y: 210, width, font: regular, size: 9.5, color: INK });
   y = paragraph(page, "Scan the code, or open the page and choose this file. The file never leaves your browser.",
     { x, y: y - 4, width, font: regular, size: 9, color: MUTED });
@@ -219,7 +219,7 @@ function drawVerification(page, { docId, url, verifyUrl }, fonts) {
   page.drawText(verifyUrl, { x, y: 78, size: 8, font: mono, color: MUTED });
 }
 
-export async function buildPdf({ docId, url, verifyUrl, consent }) {
+export async function buildPdf({ docId, url, verifyUrl, consent, network = "Arbitrum Sepolia" }) {
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
   pdf.setTitle(`Consimțământ GDPR ${consent.number}, versiunea ${consent.version} (demo)`);
@@ -253,9 +253,9 @@ export async function buildPdf({ docId, url, verifyUrl, consent }) {
   signature(page, { x: LEFT, y: 296, caption: "Pacient Demo — semnătură fictivă", signed: true, fonts });
   signature(page, { x: LEFT + 293, y: 296, caption: "Clinica Demo — reprezentant fictiv", signed: false, fonts });
 
-  drawVerification(page, { docId, url, verifyUrl }, fonts);
+  drawVerification(page, { docId, url, verifyUrl, network }, fonts);
 
-  const footer = `${SYNTHETIC_NOTICE}  ·  ConsensMed Verify, testnet preview pe Arbitrum Sepolia`;
+  const footer = `${SYNTHETIC_NOTICE}  ·  ConsensMed Verify, testnet preview pe ${network}`;
   page.drawText(footer, { x: (595 - regular.widthOfTextAtSize(footer, 8)) / 2, y: 30, size: 8, font: regular, color: MUTED });
 
   return Buffer.from(await pdf.save());

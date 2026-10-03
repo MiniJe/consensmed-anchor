@@ -71,10 +71,10 @@
 </style>
 </head>
 <body>
-<div class="banner" role="note">Testnet preview — Arbitrum Sepolia</div>
+<div class="banner" role="note">Testnet preview — <span id="bannerChain">Arbitrum Sepolia</span></div>
 <main>
   <h1>ConsensMed Verify</h1>
-  <p class="lead">Check whether a document is the one its issuer registered on Arbitrum, and whether it is still valid.</p>
+  <p class="lead">Check whether a document is the one its issuer registered on <span id="leadChain">Arbitrum</span>, and whether it is still valid.</p>
 
   <section class="card">
     <label class="drop" id="drop">
@@ -82,6 +82,7 @@
       or drop it here
       <input type="file" id="file">
     </label>
+    <p class="hint" id="chainHint" hidden></p>
     <p class="hint" id="idHint"></p>
     <p class="hint">The file never leaves your browser. Only its SHA-256 fingerprint is compared with the public registry.</p>
   </section>
@@ -95,12 +96,12 @@
   </section>
 
   <footer>
-    Registry contract on Arbitrum Sepolia:
+    Registry contract on <span id="footerChain">Arbitrum Sepolia</span>:
     <a id="contractLink" class="mono" rel="noopener" target="_blank"></a><br>
     No personal or medical data is stored on-chain: only an opaque document ID and a fingerprint.
     <div class="privacy">
-      <p lang="en"><strong>Privacy.</strong> The file never leaves your browser. No cookies, no analytics. The page loads one library from a CDN and reads the public Arbitrum RPC; both see your IP address. Operator: BEYOND-SOFTWARE S.R.L.</p>
-      <p lang="ro"><strong>Confidențialitate.</strong> Fișierul nu părăsește browserul. Fără cookie-uri, fără analytics. Pagina încarcă o bibliotecă dintr-un CDN și citește RPC-ul public Arbitrum; ambele văd adresa IP. Operator: BEYOND-SOFTWARE S.R.L.</p>
+      <p lang="en"><strong>Privacy.</strong> The file never leaves your browser. No cookies, no analytics. The page loads one library from a CDN and reads the public <span class="rpcChain">Arbitrum</span> RPC; both see your IP address. Operator: BEYOND-SOFTWARE S.R.L.</p>
+      <p lang="ro"><strong>Confidențialitate.</strong> Fișierul nu părăsește browserul. Fără cookie-uri, fără analytics. Pagina încarcă o bibliotecă dintr-un CDN și citește RPC-ul public <span class="rpcChain">Arbitrum</span>; ambele văd adresa IP. Operator: BEYOND-SOFTWARE S.R.L.</p>
     </div>
   </footer>
 </main>
@@ -108,10 +109,29 @@
 <script type="module">
 import { JsonRpcProvider, Contract } from "https://cdn.jsdelivr.net/npm/ethers@6.13.5/dist/ethers.min.js";
 
-const CONTRACT = "0x6F0aDfD3ef7befac17A6165A9Db07BFd54C2d285";
-const RPC_URL = "https://sepolia-rollup.arbitrum.io/rpc";
-const CHAIN_ID = 421614;
-const EXPLORER = "https://sepolia.arbiscan.io/address/";
+// Links without a chain parameter read Arbitrum Sepolia, as every QR code issued before the second
+// chain was added does.
+const CHAINS = {
+  "arbitrum-sepolia": {
+    label: "Arbitrum Sepolia", family: "Arbitrum", chainId: 421614,
+    contract: "0x6F0aDfD3ef7befac17A6165A9Db07BFd54C2d285",
+    rpcUrl: "https://sepolia-rollup.arbitrum.io/rpc",
+    explorer: "https://sepolia.arbiscan.io/address/",
+  },
+  robinhood: {
+    label: "Robinhood Chain Testnet", family: "Robinhood Chain", chainId: 46630,
+    contract: "0x6F0aDfD3ef7befac17A6165A9Db07BFd54C2d285",
+    rpcUrl: "https://rpc.testnet.chain.robinhood.com",
+    explorer: "https://explorer.testnet.chain.robinhood.com/address/",
+  },
+};
+const DEFAULT_CHAIN = "arbitrum-sepolia";
+const query = new URLSearchParams(location.search);
+const rawChain = query.get("chain");
+const chainKey = rawChain !== null && Object.hasOwn(CHAINS, rawChain) ? rawChain : DEFAULT_CHAIN;
+const CHAIN = CHAINS[chainKey];
+const CHAIN_QUERY = chainKey === DEFAULT_CHAIN ? "" : "&chain=" + chainKey;
+const { contract: CONTRACT, rpcUrl: RPC_URL, chainId: CHAIN_ID, explorer: EXPLORER } = CHAIN;
 const ZERO = "0x" + "0".repeat(64);
 const ABI = [
   "function verify(bytes32 docId, bytes32 contentHash) view returns (uint8)",
@@ -134,7 +154,7 @@ const STATES = [
 const $ = (id) => document.getElementById(id);
 const registry = new Contract(CONTRACT, ABI, new JsonRpcProvider(RPC_URL, CHAIN_ID, { staticNetwork: true }));
 
-const rawId = new URLSearchParams(location.search).get("id");
+const rawId = query.get("id");
 const urlId = rawId && /^0x[0-9a-fA-F]{64}$/.test(rawId) ? rawId.toLowerCase() : null;
 
 function show(css, title, text) {
@@ -173,8 +193,9 @@ function addRecordDetails(docId, rec) {
     addDetail("Issuer address", rec.issuer, { mono: true, href: EXPLORER + rec.issuer });
   }
   if (rec.supersededBy !== ZERO) {
-    addDetail("Replaced by", rec.supersededBy, { mono: true, href: "?id=" + rec.supersededBy });
+    addDetail("Replaced by", rec.supersededBy, { mono: true, href: "?id=" + rec.supersededBy + CHAIN_QUERY });
   }
+  addDetail("Network", CHAIN.label);
   addDetail("Registry contract", CONTRACT, { mono: true, href: EXPLORER + CONTRACT });
 }
 
@@ -193,6 +214,7 @@ async function checkFile(file) {
         "No document with this fingerprint is registered. If the document carries a QR code, open this page from the QR to check the file against its ID.");
       addDetail("File", file.name);
       addDetail("SHA-256 of this file", contentHash, { mono: true });
+      addDetail("Network", CHAIN.label);
       addDetail("Registry contract", CONTRACT, { mono: true, href: EXPLORER + CONTRACT });
       return;
     }
@@ -204,7 +226,18 @@ async function checkFile(file) {
     addRecordDetails(docId, rec);
   } catch (err) {
     console.error(err);
-    show("s-info", "Could not check", "The public Arbitrum Sepolia RPC did not answer. Check your connection and try again.");
+    show("s-info", "Could not check", "The public " + CHAIN.label + " RPC did not answer. Check your connection and try again.");
+  }
+}
+
+function showChain() {
+  $("bannerChain").textContent = CHAIN.label;
+  $("leadChain").textContent = CHAIN.family;
+  $("footerChain").textContent = CHAIN.label;
+  for (const el of document.querySelectorAll(".rpcChain")) el.textContent = CHAIN.family;
+  if (rawChain !== null && rawChain !== chainKey) {
+    $("chainHint").textContent = "The network named in this link is not known to this page; " + CHAIN.label + " is used.";
+    $("chainHint").hidden = false;
   }
 }
 
@@ -243,6 +276,7 @@ drop.addEventListener("drop", (e) => { if (e.dataTransfer.files[0]) checkFile(e.
 
 $("contractLink").href = EXPLORER + CONTRACT;
 $("contractLink").textContent = CONTRACT;
+showChain();
 showIdSummary();
 </script>
 </body>
