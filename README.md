@@ -147,6 +147,13 @@ docs/        threat model, security notes with the static-analysis report, build
 - One transaction per document; no batching.
 - The platform integration anchors documents; revoking and replacing them from the platform is not built yet.
 
+## How this was built
+Built by BEYOND-SOFTWARE S.R.L. using Claude Code as an AI pair programmer.
+The team set the architecture and security constraints, wrote every work order
+as a verifiable spec (invariants checked mechanically before and after each
+step), reviewed every result and made all deployment and key-management
+decisions. AI-generated code was accepted only after tests, Slither and
+on-chain checks passed.
 ## License
 
 MIT. Copyright (c) 2026 BEYOND-SOFTWARE S.R.L.
