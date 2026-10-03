@@ -1,4 +1,4 @@
-'forge clean' running (wd: C:\Users\AERO\Desktop\OLD-ConsensMed-STUFF\consensmed\consensmed-anchor\contracts)
+'forge clean' running (wd: contracts)
 'forge config --json' running
-'forge build --build-info --deny never --skip ./test/** ./script/** --force' running (wd: C:\Users\AERO\Desktop\OLD-ConsensMed-STUFF\consensmed\consensmed-anchor\contracts)
+'forge build --build-info --deny never --skip ./test/** ./script/** --force' running (wd: contracts)
 INFO:Slither:. analyzed (3 contracts with 102 detectors), 0 result(s) found
