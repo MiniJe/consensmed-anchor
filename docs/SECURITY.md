@@ -72,4 +72,4 @@ The deployed source is frozen so that it stays verifiable on both explorers: eve
 
 ## Reporting a problem
 
-Open an issue at https://github.com/MiniJe/consensmed-anchor/issues. Describe the problem without posting key material or personal data.
+Report a vulnerability privately at https://github.com/MiniJe/consensmed-anchor/security/advisories/new (GitHub's private vulnerability reporting). The report is visible only to the maintainers until it is resolved. Please do not open a public issue for a security problem.
