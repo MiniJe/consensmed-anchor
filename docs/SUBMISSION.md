@@ -28,7 +28,7 @@ A document's state changes over time: it can be revoked or replaced. That state 
 
 ## What was built during the Buildathon
 
-The ConsensMedVerify contract, fully tested, deployed on Arbitrum Sepolia with verified source; the public page at verify.consensmed.ro; a demo that takes synthetic consent forms with QR codes through the full lifecycle; an Arbitrum backend in the platform's anchoring service; a threat model.
+ConsensMedVerify, fully tested, on Arbitrum Sepolia and Robinhood Chain Testnet, source verified on both explorers; verify.consensmed.ro, reading either chain; a demo with QR-coded synthetic consent forms; an Arbitrum backend in the platform's anchoring service; threat model and Slither report.
 
 ## Contract address
 
@@ -36,7 +36,23 @@ The ConsensMedVerify contract, fully tested, deployed on Arbitrum Sepolia with v
 
 ## Explorer link
 
-https://sepolia.arbiscan.io/address/0x6F0aDfD3ef7befac17A6165A9Db07BFd54C2d285
+https://sepolia.arbiscan.io/address/0x6F0aDfD3ef7befac17A6165A9Db07BFd54C2d285#code
+
+## Core protocol / smart contract addresses
+
+Arbitrum Sepolia (421614): 0x6F0aDfD3ef7befac17A6165A9Db07BFd54C2d285, verified on Arbiscan. Robinhood Chain Testnet (46630): the same address, verified on explorer.testnet.chain.robinhood.com. Same source and settings on both; the two registries are independent.
+
+## Sponsor technologies
+
+Arbitrum Sepolia and Robinhood Chain Testnet.
+
+## Roles
+
+Owner 0x131EaF2f5Fd4a5217396Eb72d5B8171eB2141e97 authorises and removes submitters and cannot register documents. Submitter 0x7ea2A319eE8e1D00a612A9Fe6371C1aa197D737f, a service key, registers, revokes and replaces documents and cannot change who may submit. Same on both chains.
+
+## Robinhood Chain test
+
+In the sample documents release, download rh-01-original.pdf, open its link (it ends in &chain=robinhood) and choose the file: Authentic and valid, read from Robinhood Chain Testnet. rh-02-original-ALTERED.pdf on the same page: Does not match.
 
 ## Frontend link
 
@@ -64,8 +80,8 @@ No personal or medical data is on-chain. The contract stores only fixed-size val
 
 ## Known limits
 
-Testnet only and not audited. One key is both owner and submitter in the demo. The registry proves a file is the one an address registered, not that its content is true or who is behind the address. One transaction per document, no batching. Platform-side revocation is not built yet.
+Testnet only and not audited. The owner is one wallet, not a multisig. The registry proves a file is the one an address registered, not that its content is true or who is behind the address. One transaction per document, no batching. Platform-side revocation is not built yet.
 
 ## Next steps
 
-Separate the owner (multisig) from submitters, publish issuer addresses through a trusted channel, batch registrations, self-host the page's library with integrity hashes, and route the platform's consent and document flows through the Arbitrum backend, with revocation.
+Move the owner role to a multisig, publish issuer addresses through a trusted channel, batch registrations, self-host the page's library with integrity hashes, and route the platform's consent and document flows through the Arbitrum backend, with revocation.

@@ -4,7 +4,7 @@ Publicly verifiable authenticity for medical documents, with no medical data on-
 
 A clinic issues a document (a letter, a summary, a certificate). Later, someone else holds a copy: a patient, an insurer, another clinic. ConsensMed Verify lets that person check, without calling the issuer and without an account, that the file is exactly the one that was issued and that it has not been revoked or replaced since.
 
-Built for the Arbitrum Open House buildathon. It runs on Arbitrum Sepolia (testnet).
+Built for the Arbitrum Open House buildathon. It runs on two testnets: Arbitrum Sepolia and Robinhood Chain Testnet, a chain of the Arbitrum family.
 
 | | |
 |---|---|
@@ -12,7 +12,11 @@ Built for the Arbitrum Open House buildathon. It runs on Arbitrum Sepolia (testn
 | Sample documents | [`demo-samples` release](https://github.com/MiniJe/consensmed-anchor/releases/tag/demo-samples) |
 | Contract `ConsensMedVerify` | [`0x6F0aDfD3ef7befac17A6165A9Db07BFd54C2d285`](https://sepolia.arbiscan.io/address/0x6F0aDfD3ef7befac17A6165A9Db07BFd54C2d285) |
 | Network | Arbitrum Sepolia, chain id 421614 |
-| Source verification | Sourcify, exact match |
+| Source verification | [Arbiscan](https://sepolia.arbiscan.io/address/0x6F0aDfD3ef7befac17A6165A9Db07BFd54C2d285#code), and Sourcify (exact match) |
+| Second deployment | [`0x6F0aDfD3ef7befac17A6165A9Db07BFd54C2d285`](https://explorer.testnet.chain.robinhood.com/address/0x6F0aDfD3ef7befac17A6165A9Db07BFd54C2d285) on Robinhood Chain Testnet, chain id 46630, source verified on its Blockscout explorer |
+| Owner | `0x131EaF2f5Fd4a5217396Eb72d5B8171eB2141e97`, separate from the submitter key; see [docs/SECURITY.md](docs/SECURITY.md) |
+
+The same source, compiled with the same settings and deployed by the same key at the same nonce, has the same address on both chains. The two registries are independent: a document registered on one is unknown to the other.
 
 ## Try it in two minutes
 
@@ -21,6 +25,8 @@ The [`demo-samples` release](https://github.com/MiniJe/consensmed-anchor/release
 1. Download `01-original.pdf`, open its link from the release page and choose the file. The page answers **Authentic and valid**.
 2. Download `02-original-ALTERED.pdf`, the same document with one byte changed, and choose it on the same page. The page answers **Does not match**.
 3. Scan the QR code printed on any sample with a phone: it opens the page for that document. `03-revoked.pdf` and `04-superseded.pdf` show the other two states.
+
+The release also holds `rh-01-original.pdf` and `rh-02-original-ALTERED.pdf`, registered on Robinhood Chain Testnet. Their links end in `&chain=robinhood`, which tells the page to read that chain; the results are the same two as in steps 1 and 2.
 
 The documents contain no patient data; they say so on the page and in their metadata.
 
@@ -54,7 +60,7 @@ Revocation and replacement are why a chain is useful here rather than a plain li
 1. Scan the QR code on the document, or open the [verification page](https://verify.consensmed.ro).
 2. Choose the file.
 
-The page computes the SHA-256 in your browser and reads the contract through the public Arbitrum Sepolia RPC. The file is never uploaded. Without a QR code the page looks the document up by its fingerprint (`docIdOf`).
+The page computes the SHA-256 in your browser and reads the contract through the public RPC of the chain: Arbitrum Sepolia by default, Robinhood Chain Testnet when the link carries `&chain=robinhood`. It names the chain it used in the banner and next to the result. The file is never uploaded. Without a QR code the page looks the document up by its fingerprint (`docIdOf`).
 
 You do not need the page at all. The same answer comes straight from the contract:
 
@@ -64,7 +70,7 @@ cast call 0x6F0aDfD3ef7befac17A6165A9Db07BFd54C2d285 \
   --rpc-url https://sepolia-rollup.arbitrum.io/rpc
 ```
 
-The result is the state index: 0 `NOT_FOUND`, 1 `VALID`, 2 `MISMATCH`, 3 `REVOKED`, 4 `SUPERSEDED`.
+The result is the state index: 0 `NOT_FOUND`, 1 `VALID`, 2 `MISMATCH`, 3 `REVOKED`, 4 `SUPERSEDED`. For the Robinhood deployment the address is the same and the RPC is `https://rpc.testnet.chain.robinhood.com`.
 
 ## What is on-chain
 
@@ -85,7 +91,7 @@ forge coverage --report summary
 
 The demo builds synthetic consent forms, laid out the way the ConsensMed platform issues them for a clinic, each with a QR code, and walks them through the registry: issue, verify, alter one byte, revoke, replace. It needs Foundry (`cast`), Node 20 or newer, and the key of an address that is an authorised submitter on the contract, present in the environment as `ARB_SUBMITTER_KEY`. Use a testnet-only key.
 
-The demo runs on Arbitrum Sepolia only. It refuses to start unless `ARB_CHAIN_ID` is `421614` and the RPC reports the same chain.
+The demo runs on the two testnets only. On Arbitrum Sepolia it refuses to start unless `ARB_CHAIN_ID` is `421614` and the RPC reports the same chain; with `--chain robinhood` it wants `RH_CHAIN_ID` to be `46630`, the registry address in `RH_ANCHOR_CONTRACT`, and the same answer from the RPC. Any other chain stops it before a transaction is sent.
 
 ```bash
 cd demo
@@ -94,9 +100,11 @@ export ARB_CHAIN_ID=421614
 node make-demo.mjs            # issues the documents and prints the five states read back from the contract
 node make-demo.mjs --reissue  # tries to issue the original of the latest run again; the registry refuses
 node make-demo.mjs --dry-run  # only builds the documents, in demo/out/preview/; needs no key and sends nothing
+node make-demo.mjs --short    # issues the original only and adds its altered copy
+node make-demo.mjs --chain robinhood  # the short walk on Robinhood Chain Testnet; files are named rh-...
 ```
 
-Each run writes to its own folder, `demo/out/run-<time>/`, so documents that are already registered are never overwritten. `demo/out/` is not tracked; the published samples are release assets, not files in the repository. The documents contain synthetic data only and say so on the page. `node check-samples.mjs <folder>` confirms that each of the five files carries the notice in its metadata.
+Each run writes to its own folder, `demo/out/run-<time>/`, so documents that are already registered are never overwritten. `demo/out/` is not tracked; the published samples are release assets, not files in the repository. The documents contain synthetic data only and say so on the page. `node check-samples.mjs <folder>` confirms that every PDF in the folder carries the notice in its metadata.
 
 Romanian text is set in Source Sans 3, embedded in each PDF. The font files and their SIL Open Font License are in `demo/fonts/`.
 
@@ -110,7 +118,7 @@ forge script script/Deploy.s.sol --rpc-url https://sepolia-rollup.arbitrum.io/rp
 export ARB_ANCHOR_CONTRACT=<address printed by the script>
 ```
 
-The public page reads the contract listed above, so documents issued on another instance are checked with `cast call` as shown earlier.
+The public page reads the two contracts listed above, so documents issued on another instance are checked with `cast call` as shown earlier.
 
 ## Inside the ConsensMed platform
 
@@ -128,13 +136,13 @@ verify/      the public verification page, one static file
 index.html   redirect from the domain root to verify/, keeping the document ID of a QR link
 CNAME        the custom domain of the page
 demo/        synthetic documents with QR, end-to-end walk through the registry
-docs/        threat model and buildathon submission texts
+docs/        threat model, security notes with the static-analysis report, buildathon submission texts
 ```
 
 ## Limits
 
 - Testnet only. Nothing here has been audited.
-- One key is both owner and submitter in the demo deployment. A real deployment separates them.
+- The owner is a single wallet, separate from the submitter key. A real deployment puts a multisig in that role.
 - The registry shows that a file is the one an address registered. It does not show that the content is true, or who stands behind that address.
 - One transaction per document; no batching.
 - The platform integration anchors documents; revoking and replacing them from the platform is not built yet.

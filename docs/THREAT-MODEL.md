@@ -1,6 +1,6 @@
 # Threat model
 
-This document states what ConsensMed Verify guarantees, what it does not, and where it can fail. It describes the proof of concept deployed on Arbitrum Sepolia; it is not an audit.
+This document states what ConsensMed Verify guarantees, what it does not, and where it can fail. It describes the proof of concept deployed on Arbitrum Sepolia and on Robinhood Chain Testnet; it is not an audit.
 
 ## What the chain guarantees
 
@@ -47,12 +47,26 @@ The attacker cannot alter the fingerprint of an existing document or make a revo
 
 Mitigations available in the contract: the owner removes the compromised submitter with `setSubmitter(address, false)`, and every action emits an event naming the submitter, so abuse is visible and attributable. Mitigations that belong to a real deployment and are not in this proof of concept: the owner should be a multisig, separate from any submitter; submitter keys should live in an HSM or a managed signer; documents registered during a compromise window need an off-chain process to identify and reissue.
 
-In the demo deployment a single testnet key is both owner and submitter. That is acceptable for a demo and not for production.
+### Owner and submitter
+
+The two roles are held by different keys on both deployments. The owner is a wallet of the project lead; it authorises and removes submitters and is not a submitter itself, so it cannot register a document. The submitter is a service key; it cannot authorise another key, and it cannot keep itself authorised once the owner removes it.
+
+Withdrawing a compromised submitter:
+
+1. The owner calls `setSubmitter(<compromised address>, false)`. The call takes effect in the block that includes it; later calls from that key revert.
+2. The owner authorises a replacement key with `setSubmitter(<new address>, true)`.
+3. The `Issued`, `Revoked` and `Superseded` events name the submitter, so everything the key did while compromised can be listed from the chain.
+4. What the attacker registered, revoked or replaced stays as it is. Those documents are identified from the events and reissued off-chain.
+
+The procedure is run once per chain: the two registries do not share state.
+
+What the separation does not cover: the owner is a single wallet. If that key is lost, the set of submitters is frozen; if it is stolen, the thief chooses the submitters. The contract also inherits `renounceOwnership` and a one-step `transferOwnership`, so a mistaken call by the owner is final. See [SECURITY.md](SECURITY.md) for what a next deployment changes.
 
 ### The verification page
 
 - **Lookalike pages.** A forged document can carry a QR code pointing to a page that always answers "valid". The check is only as good as the address in the browser bar. Verifiers who need certainty call the contract directly.
 - **Script supply chain.** The page loads one library from a CDN, pinned to an exact version. A compromised CDN could serve altered code. A production page would self-host the library with integrity hashes.
+- **The chain in the link.** The page reads Arbitrum Sepolia unless the link says `chain=robinhood`. The two registries are independent, so a document checked against the wrong chain reports "Not registered", never "valid". The page names the chain it read in its banner and next to the result; a chain name it does not know is ignored and said so.
 - **RPC trust.** The page believes the public RPC endpoint. A hostile endpoint could lie about the state. Anyone can repeat the call against their own node.
 - **The file stays local.** The page hashes the file in the browser and sends only the ID and the fingerprint to the RPC. The RPC operator sees those two values and the caller's IP address.
 

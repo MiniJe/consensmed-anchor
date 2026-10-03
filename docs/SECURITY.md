@@ -32,9 +32,9 @@ A clean report from one tool means that tool found none of the patterns it knows
 | Owner | `0x131EaF2f5Fd4a5217396Eb72d5B8171eB2141e97`, a wallet held by the project lead | authorise and remove submitters (`setSubmitter`), hand the role over (`transferOwnership`) |
 | Submitter | `0x7ea2A319eE8e1D00a612A9Fe6371C1aa197D737f`, a service key | register, revoke and replace documents (`issue`, `revoke`, `supersede`) |
 
-The two roles are separate. The owner is not a submitter, so the owner wallet cannot register a document; the service key is not the owner, so it cannot authorise another key or keep itself authorised.
+The two roles are separate on both deployments (Arbitrum Sepolia and Robinhood Chain Testnet, same contract address). The owner is not a submitter, so the owner wallet cannot register a document; the service key is not the owner, so it cannot authorise another key or keep itself authorised.
 
-The contract was deployed by the service key, which then handed ownership to the owner wallet. From that transaction on, only the owner wallet can change who may submit.
+Both contracts were deployed by the service key, which then handed ownership to the owner wallet. From that transaction on, only the owner wallet can change who may submit.
 
 Anyone can read the roles:
 
@@ -45,7 +45,7 @@ cast call <contract> "isSubmitter(address)(bool)" <address> --rpc-url <rpc>
 
 ## If the service key is compromised
 
-1. The owner calls `setSubmitter(<compromised address>, false)`. From that block on, the key can no longer register, revoke or replace anything.
+1. The owner calls `setSubmitter(<compromised address>, false)` on each chain. From that block on, the key can no longer register, revoke or replace anything.
 2. The owner authorises a new service key with `setSubmitter(<new address>, true)`.
 3. Every action emitted an event naming the submitter (`Issued`, `Revoked`, `Superseded`), so what the key did during the compromise window can be listed from the chain.
 4. Documents registered by the attacker stay registered, and genuine documents the attacker revoked or replaced stay so: the contract has no undo. Identifying them and reissuing them is an off-chain process, which this proof of concept does not include.
@@ -54,14 +54,14 @@ The owner key is the one that matters most. If it is lost, the set of submitters
 
 ## Testnet limits
 
-- The deployment is on a testnet, which can be reset or retired. Nothing here secures anything of value.
-- The service key is a testnet key kept in a local file. The demo passes it to `cast` as an argument, which is acceptable only because the key is worthless; the demo refuses to run on any chain it does not name as a testnet.
+- Both deployments are on testnets, which can be reset or retired. Nothing here secures anything of value.
+- The service key is a testnet key kept in a local file. The demo passes it to `cast` as an argument, which is acceptable only because the key is worthless; the demo refuses to run on any chain other than the two testnets.
 - The owner is a single wallet, not a multisig.
 - No audit, no bug bounty, no monitoring of events.
 
 ## For the next deployment
 
-The deployed source is frozen so that it stays verifiable on the explorer: even a comment would change the metadata hash in the bytecode. The improvements below need a new deployment and are deliberately not made here.
+The deployed source is frozen so that it stays verifiable on both explorers: even a comment would change the metadata hash in the bytecode. The improvements below need a new deployment and are deliberately not made here.
 
 - `Ownable2Step` instead of `Ownable`, so that ownership moves only after the new owner accepts it. A transfer to a mistyped address would then fail instead of locking the role.
 - Disable `renounceOwnership`. The contract inherits it, and calling it would freeze the set of submitters for good.
